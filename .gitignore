@@ -1,0 +1,7 @@
+myenv
+.idea
+__pycache__
+.env
+urls.db
+urls.db-shm
+urls.db-wal
