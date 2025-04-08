@@ -10,7 +10,7 @@ A highly scalable, low-latency URL shortener built with:
 - And a fully asynchronous backend that ensures fast reads, durable writes, and graceful shutdown.
 
 ## Tech Stack
-- **Backend**: Python (Flask)
+- **Backend**: Python (FastAPI)
 - **Database**: Supabase (PostgreSQL)
 - **Scripts**: Bash
 
