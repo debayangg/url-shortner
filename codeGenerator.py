@@ -39,16 +39,18 @@ async def generate_codes_if_needed():
 async def get_code_for_new_url() -> str:
     """Return a random available code, removing it from the pool."""
     global codes
-    print("[get_code_for_new_url] Getting code for new URL...")
-    # Optionally, check if codes need to be generated:
-    await generate_codes_if_needed()
-
-    print("[get_code_for_new_url] Fetching a random code from codes...")
-    code = codes[random.randint(0, len(codes) - 1)]
-    codes.remove(code)
-
-    if code:
-        print(f"[get_code_for_new_url] Code {code} deleted from available codes.")
-    else:
-        print("[get_code_for_new_url] No code available! This should not happen if generation works properly.")
-    return code
+    async with code_generation_lock:
+        print("[get_code_for_new_url] Getting code for new URL...")
+        # Optionally, check if codes need to be generated:
+        if len(codes)<LOW_WATERMARK:
+            await generate_codes_if_needed()
+    
+        print("[get_code_for_new_url] Fetching a random code from codes...")
+        code = codes[random.randint(0, len(codes) - 1)]
+        codes.remove(code)
+    
+        if code:
+            print(f"[get_code_for_new_url] Code {code} deleted from available codes.")
+        else:
+            print("[get_code_for_new_url] No code available! This should not happen if generation works properly.")
+        return code
