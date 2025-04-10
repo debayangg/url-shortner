@@ -86,3 +86,7 @@ url-shortner/
   - On startup, all existing link mappings are **synchronized** from the remote Supabase database into the local SQLite database.
   - Ensures that the local database is fully updated before the server begins handling requests.
   - A **graceful shutdown mechanism** ensures that all pending writes are **flushed** to the remote database before termination, guaranteeing **no data loss**.
+
+Results:
+- Shortening Endpoint can handle 2000 RPS
+- Re-Routing Endpoint can handle 1500 RPS
