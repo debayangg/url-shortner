@@ -5,3 +5,4 @@ __pycache__
 urls.db
 urls.db-shm
 urls.db-wal
+stress.test.js

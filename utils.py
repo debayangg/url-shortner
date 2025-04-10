@@ -15,3 +15,15 @@ def int_to_base62(n: int, length: int = 6) -> str:
     while len(s) < length:
         s.append(BASE62[0])
     return ''.join(reversed(s))
+
+def sanitize_url(url: str) -> bool:
+    if len(url) != 6:
+        return False
+    if url[:2] == '//':
+        return False
+    if url[:3] == '///':
+        return False
+    if any(code not in BASE62 for code in url):
+        return False
+
+    return True

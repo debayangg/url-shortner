@@ -1,56 +1,123 @@
 import random
 import asyncio
-from database import set_setting, get_setting, cursor, get_url_codes
+import time
+from database import set_setting, get_setting, get_url_codes
 from utils import int_to_base62
 
-BATCH_SIZE = 100000
-LOW_WATERMARK = 1000
-codes = []
+# Configuration Constants
+BATCH_SIZE = 100_000
+LOW_WATERMARK = 1_000
+HIGH_WATERMARK = 10_000
+GENERATION_COOLDOWN = 5  # Seconds to prevent rapid regeneration
+CODE_CACHE_SIZE = 1_000  # Not directly used but kept for possible future enhancement
 
+# Global State
+available_codes = []
 code_generation_lock = asyncio.Lock()
+last_generation_time = 0
 
-async def generate_codes_if_needed():
-    global codes
+async def generate_codes_setup():
+    global available_codes
+    global code_generation_lock
     async with code_generation_lock:
-        current_max = get_setting('current_max')
-        if current_max == 0:
-            current_max += BATCH_SIZE
+        current_max = await get_setting('current_max')
         start = 1
         end = current_max + 1
+        used_url_codes = await get_url_codes()
+        used_codes = set(used_url_codes if used_url_codes else [])
+        new_codes = {
+            int_to_base62(code_int)
+            for code_int in range(start, end)
+            if int_to_base62(code_int) not in used_codes
+        }
+        available_codes.extend(new_codes)
 
-        codes = [int_to_base62(code) for code in range(start, end)]
+async def generate_codes_if_needed():
+    """Generate more short URL codes if available pool is low."""
+    global available_codes, last_generation_time
 
-        used_codes = get_url_codes()
+    if len(available_codes) > LOW_WATERMARK:
+        return
 
-        if used_codes is not None:
-            for used_code in used_codes:
-                codes.remove(used_code)
+    async with code_generation_lock:
+        if len(available_codes) > LOW_WATERMARK:
+            return
 
-        if len(codes) < LOW_WATERMARK:
-            current_max += BATCH_SIZE
-            start = end
-            end = current_max + 1
-            codes.extend([int_to_base62(code) for code in range(start, end)])
+        current_time = time.time()
+        if current_time - last_generation_time < GENERATION_COOLDOWN:
+            return
 
+        last_generation_time = current_time
+        print(f"Generating new codes. Current available: {len(available_codes)}")
+
+        # Await the current maximum setting properly
+        current_max = await get_setting('current_max')
+        if not current_max:
+            current_max = BATCH_SIZE
+
+        # Define new range for generation
+        start = current_max + 1
+        end = start + BATCH_SIZE
+
+        # Fetch used codes from database
+        used_codes = set(await get_url_codes() or [])
+
+        # Generate unique codes
+        new_codes = {
+            int_to_base62(code_int)
+            for code_int in range(start, end)
+            if int_to_base62(code_int) not in used_codes
+        }
+
+        available_codes.extend(new_codes)
+
+        # Update the current max value in DB
+        await set_setting('current_max', end - 1)
+        print(f"Generated {len(new_codes)} new codes. Available now: {len(available_codes)}")
+
+
+async def prefill_code_cache():
+    """Prefill the available codes cache during app startup."""
+    global available_codes
+
+    current_max = await get_setting('current_max')
+    if not current_max:
+        current_max = BATCH_SIZE
         await set_setting('current_max', current_max)
-        print(f"[generate_codes_if_needed] Finished generating codes. Updated current_max to {end - 1}")
+
+    used_codes = set(await get_url_codes() or [])
+
+    # Fill available codes from 1 to current_max
+    available_codes.extend(
+        int_to_base62(code_int)
+        for code_int in range(1, current_max + 1)
+        if int_to_base62(code_int) not in used_codes
+    )
+
+    print(f"Initial code cache filled with {len(available_codes)} codes")
+
+    # If codes are too few, trigger generation
+    if len(available_codes) < HIGH_WATERMARK:
+        await generate_codes_if_needed()
 
 
 async def get_code_for_new_url() -> str:
-    """Return a random available code, removing it from the pool."""
-    global codes
-    async with code_generation_lock:
-        print("[get_code_for_new_url] Getting code for new URL...")
-        # Optionally, check if codes need to be generated:
-        if len(codes)<LOW_WATERMARK:
-            await generate_codes_if_needed()
-    
-        print("[get_code_for_new_url] Fetching a random code from codes...")
-        code = codes[random.randint(0, len(codes) - 1)]
-        codes.remove(code)
-    
-        if code:
-            print(f"[get_code_for_new_url] Code {code} deleted from available codes.")
-        else:
-            print("[get_code_for_new_url] No code available! This should not happen if generation works properly.")
-        return code
+    """Fetch a fresh code for a new URL."""
+    global available_codes
+
+    # Refill if empty
+    if not available_codes:
+        await prefill_code_cache()
+
+    if not available_codes:
+        print("ERROR: No codes available even after attempting to fill!")
+        return None
+
+    # Pop a random code
+    code = available_codes.pop(random.randrange(len(available_codes)))
+
+    # Refill in background if low
+    if len(available_codes) < LOW_WATERMARK:
+        asyncio.create_task(generate_codes_if_needed())
+
+    return code
