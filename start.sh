@@ -6,6 +6,7 @@ set -e  # Exit immediately if a command exits with non-zero status
 echo "🔹 Activating virtual environment..."
 python -m venv myenv
 source myenv/bin/activate
+pip install -r requirements.txt
 
 # Export environment variables from .env
 if [ -f .env ]; then
