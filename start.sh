@@ -4,6 +4,7 @@ set -e  # Exit immediately if a command exits with non-zero status
 
 # Activate virtual environment
 echo "🔹 Activating virtual environment..."
+python -m venv myenv
 source myenv/bin/activate
 
 # Export environment variables from .env
