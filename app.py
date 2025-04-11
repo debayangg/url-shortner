@@ -29,7 +29,7 @@ async def startup_event():
 async def shorten_url(req: URLRequest):
     code = await get_code_for_new_url()
     asyncio.create_task(insert_url(code, req.url))
-    return {"short_url": f"http://localhost:8000/{code}"}
+    return {"short_url": f"{BASE_URL}/{code}"}
 
 @app.get("/{code}")
 async def redirect_to_url(code: str):

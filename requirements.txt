@@ -1,6 +1,7 @@
 aiohappyeyeballs
 aiohttp
 aiosignal
+aiosqlite
 annotated-types
 anyio
 async-timeout
